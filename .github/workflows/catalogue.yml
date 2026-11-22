@@ -1,0 +1,32 @@
+# Rebuilds the free library list once a month, and when run by hand from the Actions tab.
+# The app reads catalogue/version.json and fetches catalogue/catalogue.zip when it is newer.
+name: Refresh the free library list
+on:
+  schedule:
+    - cron: "17 4 3 * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: catalogue
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the list
+        run: python3 .github/catalogue/make_catalogue.py --out "$RUNNER_TEMP/list" --site "$RUNNER_TEMP/site"
+      - name: Check it and put it in place
+        run: python3 .github/catalogue/check.py "$RUNNER_TEMP/site" catalogue
+      - name: Save it
+        run: |
+          git config user.name "Jonathan Jackson"
+          git config user.email "jacksonja21@gmail.com"
+          git add catalogue
+          if git diff --cached --quiet; then echo "No change"; exit 0; fi
+          git commit -m "Refresh the free library list"
+          git pull --rebase
+          git push
